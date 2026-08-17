@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: salevn-api
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn api:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 30"
+    envVars:
+      - key: SHOPEE_COOKIE
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11"
