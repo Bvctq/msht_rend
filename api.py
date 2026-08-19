@@ -26,7 +26,6 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 COOKIE = os.environ.get("SHOPEE_COOKIE", "")
 PORT = int(os.environ.get("PORT", 5000))
 
-# Session giữ connection pool — giảm latency đáng kể so với Vercel
 session = requests.Session()
 session.headers.update({
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
@@ -65,6 +64,7 @@ def format_money(num):
         return "₫0"
 
 def format_shopee_money(num):
+    """Shopee trả về đơn vị nhỏ nhất, cần chia 100000 để ra VND"""
     try:
         vnd = int(num) / 100000
         return f"₫{int(vnd):,}".replace(",", ".")
@@ -269,8 +269,7 @@ def orders():
 
         out = []
         for checkout in checkout_list:
-            # ========== SỬA: DÙNG total_brand_commission THAY VÌ affiliate_net_commission ==========
-            # Thứ tự ưu tiên: total_brand_commission -> eligible_seller_commission -> affiliate_net_commission
+            # ===== SỬA: Ưu tiên total_brand_commission -> eligible_seller_commission -> affiliate_net_commission =====
             brand_comm_raw = checkout.get("total_brand_commission")
             if brand_comm_raw is None:
                 brand_comm_raw = checkout.get("eligible_seller_commission")
@@ -288,7 +287,6 @@ def orders():
 
             comm_per_item = brand_comm // total_items if total_items > 0 else 0
             remainder = brand_comm - (comm_per_item * total_items)
-            # ===================================================================================
 
             checkout_status = checkout.get("checkout_status", "")
             conversion_status = checkout.get("conversion_status", 1)
@@ -314,11 +312,9 @@ def orders():
                     mapped_status = "pending"
 
                 for item in (order.get("items") or []):
-                    # Chia đều brand commission cho các item, phần dư cộng vào item đầu tiên
                     item_comm = comm_per_item + (1 if item_idx == 0 and remainder > 0 else 0)
                     item_idx += 1
 
-                    # Chia đôi 50% cho user
                     user_cashback = item_comm // 2
 
                     actual = item.get("actual_amount", 0)
