@@ -269,14 +269,14 @@ def orders():
 
         out = []
         for checkout in checkout_list:
-            # Dùng total_brand_commission thay vì affiliate_net_commission
+            # ========== SỬA: DÙNG total_brand_commission THAY VÌ affiliate_net_commission ==========
             # Thứ tự ưu tiên: total_brand_commission -> eligible_seller_commission -> affiliate_net_commission
             brand_comm_raw = checkout.get("total_brand_commission")
             if brand_comm_raw is None:
                 brand_comm_raw = checkout.get("eligible_seller_commission")
             if brand_comm_raw is None:
                 brand_comm_raw = checkout.get("affiliate_net_commission") or "0"
-
+            
             try:
                 brand_comm = int(float(str(brand_comm_raw)))
             except Exception:
@@ -288,6 +288,7 @@ def orders():
 
             comm_per_item = brand_comm // total_items if total_items > 0 else 0
             remainder = brand_comm - (comm_per_item * total_items)
+            # ===================================================================================
 
             checkout_status = checkout.get("checkout_status", "")
             conversion_status = checkout.get("conversion_status", 1)
@@ -305,11 +306,7 @@ def orders():
                 order_sn = order.get("order_sn", "")
                 order_status = order.get("order_status", "")
 
-                if (
-                    order_status == "CANCEL"
-                    or checkout_status == "Invalid"
-                    or conversion_status == 3
-                ):
+                if order_status == "CANCEL" or checkout_status == "Invalid" or conversion_status == 3:
                     mapped_status = "cancelled"
                 elif order_status == "COMPLETED" or conversion_status == 2:
                     mapped_status = "confirmed"
@@ -324,7 +321,6 @@ def orders():
                     # Chia đôi 50% cho user
                     user_cashback = item_comm // 2
 
-                    # Ưu tiên actual_amount từ Shopee, nếu không có thì dùng item_price
                     actual = item.get("actual_amount", 0)
                     price = item.get("item_price", 0)
                     amount_val = actual if actual else price
@@ -453,4 +449,4 @@ def api_health():
 if __name__ == "__main__":
     logger.info(f"🚀 SaleVN API starting on 0.0.0.0:{PORT}")
     logger.info(f"🔑 Cookie configured: {bool(COOKIE)} (length: {len(COOKIE)})")
-    app.run(host="0.0.0.0", port=PORT, debug=False, 
+    app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
