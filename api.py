@@ -268,7 +268,7 @@ def orders():
         checkout_list = data.get("list") or []
 
         out = []
-        for checkout in checkout_list:
+for checkout in checkout_list:
     # ========== SỬA: DÙNG total_brand_commission THAY VÌ affiliate_net_commission ==========
     # Thứ tự ưu tiên: total_brand_commission -> eligible_seller_commission -> affiliate_net_commission
     brand_comm_raw = checkout.get("total_brand_commission")
