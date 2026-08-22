@@ -442,6 +442,7 @@ def api_health():
     return health()
 
 # ==================== API LAZADA CONVERT (FALLBACK) ====================
+# ==================== API LAZADA CONVERT (FALLBACK) ====================
 @app.route("/api/lazada-convert", methods=["POST"])
 @log_request
 def lazada_convert():
@@ -452,7 +453,6 @@ def lazada_convert():
     sub_id = str(data.get("sub_id", "")).strip()
     
     user_id = data.get("user_id")
-    # Chuyển user_id thành string an toàn (nếu là None thì trả về chuỗi rỗng)
     user_id_str = str(user_id).strip() if user_id is not None else ""
     
     if not jump_url:
@@ -465,10 +465,12 @@ def lazada_convert():
         logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
         return jsonify({"error": "Chưa cấu hình LAZADA_COOKIE trên Render"}), 500
 
-    # Ưu tiên dùng user_id (dạng số). Nếu không có, fallback về sub_id (bỏ chữ 'S' ở đầu nếu có)
-    affiliate_id = user_id_str if user_id_str else sub_id.lstrip('S')
+    # Ưu tiên dùng sub_id (đã loại bỏ ký tự 'S' ở đầu nếu có) để làm định danh cho sub_id1
+    # Ví dụ: sub_id = "S123456" -> affiliate_id = "123456"
+    affiliate_id = sub_id.lstrip('S') if sub_id else (user_id_str if user_id_str else "unknown")
     
     timestamp_ms = int(time.time() * 1000)
+    # Định dạng chuẩn yêu cầu: subId_VN_{affiliate_id}_{timestamp}_83
     sub_id_template = f"subId_VN_{affiliate_id}_{timestamp_ms}_83"
 
     payload = {
@@ -482,7 +484,8 @@ def lazada_convert():
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    logger.info(f"Calling Lazada fallback API for user_id={user_id_str}, sub_id={sub_id}, template={sub_id_template}")
+    # Log chi tiết để bạn dễ dàng kiểm tra xem template có được tạo đúng ý muốn không
+    logger.info(f"Calling Lazada fallback API | sub_id={sub_id} | user_id={user_id_str} | template={sub_id_template}")
     
     try:
         r = session.post(
