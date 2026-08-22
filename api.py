@@ -88,8 +88,8 @@ def log_request(f):
 @log_request
 def convert():
     data = request.get_json() or {}
-    url = data.get("url", "").strip()
-    sub = data.get("sub_id", "")
+    url = str(data.get("url", "")).strip()
+    sub = str(data.get("sub_id", "")).strip()
 
     if not url:
         return jsonify({"error": "Missing url"}), 400
@@ -242,7 +242,7 @@ def orders():
     qs = urllib.parse.urlencode({
         "page_size": request.args.get("page_size", "20"),
         "page_num": request.args.get("page_num", "1"),
-        "sub_id": sub_id,
+        "sub_id": str(sub_id),
         "purchase_time_s": request.args.get("start", ""),
         "purchase_time_e": request.args.get("end", ""),
         "version": "1"
@@ -365,7 +365,7 @@ def test_report():
         qs = urllib.parse.urlencode({
             "page_size": "20",
             "page_num": "1",
-            "sub_id": sub_id,
+            "sub_id": str(sub_id),
             "purchase_time_s": start,
             "purchase_time_e": end,
             "version": "1"
@@ -446,9 +446,14 @@ def api_health():
 @log_request
 def lazada_convert():
     data = request.get_json() or {}
-    jump_url = data.get("jumpUrl", "").strip()
-    sub_id = data.get("sub_id", "").strip()
-    user_id = data.get("user_id", "").strip()
+    
+    # Ép kiểu về string an toàn để tránh lỗi 'int' object has no attribute 'strip'
+    jump_url = str(data.get("jumpUrl", "")).strip()
+    sub_id = str(data.get("sub_id", "")).strip()
+    
+    user_id = data.get("user_id")
+    # Chuyển user_id thành string an toàn (nếu là None thì trả về chuỗi rỗng)
+    user_id_str = str(user_id).strip() if user_id is not None else ""
     
     if not jump_url:
         return jsonify({"error": "Missing jumpUrl"}), 400
@@ -460,7 +465,9 @@ def lazada_convert():
         logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
         return jsonify({"error": "Chưa cấu hình LAZADA_COOKIE trên Render"}), 500
 
-    affiliate_id = user_id if user_id else sub_id.lstrip('S')
+    # Ưu tiên dùng user_id (dạng số). Nếu không có, fallback về sub_id (bỏ chữ 'S' ở đầu nếu có)
+    affiliate_id = user_id_str if user_id_str else sub_id.lstrip('S')
+    
     timestamp_ms = int(time.time() * 1000)
     sub_id_template = f"subId_VN_{affiliate_id}_{timestamp_ms}_83"
 
@@ -475,7 +482,7 @@ def lazada_convert():
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    logger.info(f"Calling Lazada fallback API for user_id={user_id}, sub_id={sub_id}, template={sub_id_template}")
+    logger.info(f"Calling Lazada fallback API for user_id={user_id_str}, sub_id={sub_id}, template={sub_id_template}")
     
     try:
         r = session.post(
@@ -485,7 +492,7 @@ def lazada_convert():
             timeout=15
         )
         
-        # --- SỬA LỖI: Bắt lỗi nếu Lazada trả về HTML (Cloudflare/Captcha) thay vì JSON ---
+        # Bắt lỗi nếu Lazada trả về HTML (Cloudflare/Captcha) thay vì JSON
         try:
             res = r.json()
         except Exception:
