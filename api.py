@@ -442,14 +442,13 @@ def api_health():
     return health()
 
 # ==================== API LAZADA CONVERT (FALLBACK) ====================
-# ==================== API LAZADA CONVERT (FALLBACK) ====================
 @app.route("/api/lazada-convert", methods=["POST"])
 @log_request
 def lazada_convert():
     data = request.get_json() or {}
     jump_url = data.get("jumpUrl", "").strip()
     sub_id = data.get("sub_id", "").strip()
-    user_id = data.get("user_id", "").strip() # <-- LẤY USER_ID TỪ PHP
+    user_id = data.get("user_id", "").strip()
     
     if not jump_url:
         return jsonify({"error": "Missing jumpUrl"}), 400
@@ -459,13 +458,10 @@ def lazada_convert():
     cookie = clean_cookie(LAZADA_COOKIE)
     if not cookie:
         logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
-        return jsonify({"error": "No Lazada cookie configured"}), 500
+        return jsonify({"error": "Chưa cấu hình LAZADA_COOKIE trên Render"}), 500
 
-    # Ưu tiên dùng user_id (dạng số). Nếu không có, fallback về sub_id (bỏ chữ 'S' ở đầu nếu có)
     affiliate_id = user_id if user_id else sub_id.lstrip('S')
-    
     timestamp_ms = int(time.time() * 1000)
-    # Tạo chuỗi khớp với mẫu: subId_VN_212941210_1786990885034_83
     sub_id_template = f"subId_VN_{affiliate_id}_{timestamp_ms}_83"
 
     payload = {
@@ -488,8 +484,17 @@ def lazada_convert():
             json=payload,
             timeout=15
         )
-        res = r.json()
         
+        # --- SỬA LỖI: Bắt lỗi nếu Lazada trả về HTML (Cloudflare/Captcha) thay vì JSON ---
+        try:
+            res = r.json()
+        except Exception:
+            logger.error(f"Lazada trả về không phải JSON. Status: {r.status_code}, Body: {r.text[:300]}")
+            return jsonify({
+                "error": "Lazada trả về lỗi (Cookie có thể hết hạn hoặc bị chặn)",
+                "detail": r.text[:200]
+            }), 502
+
         if res.get("success") and res.get("resultCode") == 1:
             short_link = res["data"].get("shortLink")
             deep_link = res["data"].get("deepLink")
