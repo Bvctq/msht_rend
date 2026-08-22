@@ -270,7 +270,6 @@ def orders():
 
         out = []
         for checkout in checkout_list:
-            # ===== SỬA: Ưu tiên total_brand_commission -> eligible_seller_commission -> affiliate_net_commission =====
             brand_comm_raw = checkout.get("total_brand_commission")
             if brand_comm_raw is None:
                 brand_comm_raw = checkout.get("eligible_seller_commission")
@@ -434,23 +433,14 @@ def health():
         "status": "OK",
         "service": "SaleVN API on Render",
         "timestamp": datetime.now().isoformat(),
-        "cookie_configured": bool(COOKIE),
-        "cookie_length": len(COOKIE)
+        "shopee_cookie_configured": bool(COOKIE),
+        "lazada_cookie_configured": bool(LAZADA_COOKIE)
     })
 
 @app.route("/api/health", methods=["GET"])
 def api_health():
     return health()
 
-@app.route("/", methods=["GET"])
-def health():
-    return jsonify({
-        "status": "OK",
-        "service": "SaleVN API on Render",
-        "timestamp": datetime.now().isoformat(),
-        "shopee_cookie_configured": bool(SHOPEE_COOKIE),
-        "lazada_cookie_configured": bool(LAZADA_COOKIE) # <-- THÊM DÒNG NÀY
-    })
 # ==================== API LAZADA CONVERT (FALLBACK) ====================
 @app.route("/api/lazada-convert", methods=["POST"])
 @log_request
@@ -469,8 +459,6 @@ def lazada_convert():
         logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
         return jsonify({"error": "No Lazada cookie configured"}), 500
 
-    # Cấu trúc subIdTemplateKey theo mẫu bạn cung cấp: subId_VN_{ID}_{TIMESTAMP}_83
-    # Lưu ý: Nếu ID tài khoản affiliate của bạn khác, hãy thay số '83' hoặc phần đầu cho phù hợp
     timestamp_ms = int(time.time() * 1000)
     sub_id_template = f"subId_VN_{sub_id}_{timestamp_ms}_83"
 
@@ -521,5 +509,6 @@ def lazada_convert():
 # ==================== MAIN ====================
 if __name__ == "__main__":
     logger.info(f"🚀 SaleVN API starting on 0.0.0.0:{PORT}")
-    logger.info(f"🔑 Cookie configured: {bool(COOKIE)} (length: {len(COOKIE)})")
+    logger.info(f"🔑 Shopee Cookie configured: {bool(COOKIE)} (length: {len(COOKIE)})")
+    logger.info(f"🔑 Lazada Cookie configured: {bool(LAZADA_COOKIE)} (length: {len(LAZADA_COOKIE)})")
     app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
