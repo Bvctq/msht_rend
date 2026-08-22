@@ -72,20 +72,6 @@ def format_shopee_money(num):
     except Exception:
         return "₫0"
 
-def inject_sub_id(url, sub_id):
-    """Force sub_id1 vào URL affiliate Lazada"""
-    if not url or not sub_id:
-        return url
-    try:
-        parsed = urllib.parse.urlparse(url)
-        qs = urllib.parse.parse_qs(parsed.query)
-        qs["sub_id1"] = [str(sub_id)]
-        new_query = urllib.parse.urlencode(qs, doseq=True)
-        return urllib.parse.urlunparse(parsed._replace(query=new_query))
-    except Exception as e:
-        logger.warning(f"inject_sub_id failed: {e}")
-        return url
-
 def log_request(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -178,95 +164,6 @@ def convert():
         "short_link": sl,
         "sub_id": sub or None
     })
-
-# ==================== API LAZADA FALLBACK ====================
-@app.route("/api/lazada/convert", methods=["POST"])
-@log_request
-def lazada_convert():
-    data = request.get_json() or {}
-    url = data.get("url", "").strip()
-    sub = data.get("sub_id", "")
-
-    if not url:
-        return jsonify({"error": "Missing url"}), 400
-
-    cookie = clean_cookie(LAZADA_COOKIE)
-    if not cookie:
-        logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
-        return jsonify({"error": "No lazada cookie configured"}), 500
-
-    template_key = os.environ.get("LAZADA_SUBID_TEMPLATE_KEY", "")
-
-    payload = {"jumpUrl": url}
-    if template_key:
-        payload["subIdTemplateKey"] = template_key
-    if sub:
-        payload["subId1"] = str(sub)
-
-    headers = {
-        "content-type": "application/json",
-        "cookie": cookie,
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-        "referer": "https://adsense.lazada.vn/",
-        "origin": "https://adsense.lazada.vn",
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-    }
-
-    logger.info(f"Calling Lazada link-convert-v2 for sub_id={sub}")
-    try:
-        r = session.post(
-            "https://adsense.lazada.vn/newOffer/link-convert-v2.json",
-            headers=headers,
-            json=payload,
-            timeout=20
-        )
-        raw_text = r.text
-        try:
-            d = r.json()
-        except Exception as e:
-            logger.error(f"Lazada trả về non-JSON: {raw_text[:500]}")
-            return jsonify({
-                "error": "Lazada returned non-JSON",
-                "http_status": r.status_code,
-                "raw": raw_text[:1000]
-            }), 500
-
-        if not d.get("success") or not d.get("data"):
-            logger.error(f"Lazada convert failed: {json.dumps(d)[:500]}")
-            return jsonify({
-                "error": "Lazada convert failed",
-                "detail": d,
-                "http_status": r.status_code
-            }), 500
-
-        item = d["data"]
-        short_link = item.get("shortLink", "")
-        deep_link = item.get("deepLink", "")
-        affiliate_url = short_link or deep_link
-
-        # Đảm bảo sub_id đúng
-        if sub and affiliate_url:
-            affiliate_url = inject_sub_id(affiliate_url, sub)
-            if short_link:
-                short_link = inject_sub_id(short_link, sub)
-
-        logger.info(f"✓ Lazada Fallback OK: {affiliate_url[:60]}...")
-        return jsonify({
-            "success": True,
-            "affiliate_url": affiliate_url,
-            "short_link": short_link or affiliate_url,
-            "sub_id": sub or None,
-            "fallback": True,
-            "message": "chưa hiện được thông tin sản phẩm do lazada đang nâng cấp, sản phẩm có thể vẫn được hoàn tiền nếu hợp lệ",
-            "product_name": "Sản phẩm Lazada",
-            "image": "",
-            "price": ""
-        })
-
-    except Exception as e:
-        logger.error(f"Lazada convert exception: {e}")
-        return jsonify({"error": str(e)}), 500
 
 # ==================== API COMMISSION ====================
 @app.route("/api/commission", methods=["GET"])
@@ -379,7 +276,7 @@ def orders():
                 brand_comm_raw = checkout.get("eligible_seller_commission")
             if brand_comm_raw is None:
                 brand_comm_raw = checkout.get("affiliate_net_commission") or "0"
-
+            
             try:
                 brand_comm = int(float(str(brand_comm_raw)))
             except Exception:
@@ -516,7 +413,7 @@ def test_report():
                 "http_code": r.status_code,
                 "shopee_code": shopee_code,
                 "total_checkouts": 0,
-                "message": "API hoạt động nhưng không có đơn hàng (sub_id chưa có đơn hoặc sai thờ gian)."
+                "message": "API hoạt động nhưng không có đơn hàng (sub_id chưa có đơn hoặc sai thời gian)."
             })
         else:
             return jsonify({
@@ -538,18 +435,91 @@ def health():
         "service": "SaleVN API on Render",
         "timestamp": datetime.now().isoformat(),
         "cookie_configured": bool(COOKIE),
-        "cookie_length": len(COOKIE),
-        "lazada_cookie_configured": bool(LAZADA_COOKIE),
-        "lazada_cookie_length": len(LAZADA_COOKIE)
+        "cookie_length": len(COOKIE)
     })
 
 @app.route("/api/health", methods=["GET"])
 def api_health():
     return health()
 
+@app.route("/", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "OK",
+        "service": "SaleVN API on Render",
+        "timestamp": datetime.now().isoformat(),
+        "shopee_cookie_configured": bool(SHOPEE_COOKIE),
+        "lazada_cookie_configured": bool(LAZADA_COOKIE) # <-- THÊM DÒNG NÀY
+    })
+# ==================== API LAZADA CONVERT (FALLBACK) ====================
+@app.route("/api/lazada-convert", methods=["POST"])
+@log_request
+def lazada_convert():
+    data = request.get_json() or {}
+    jump_url = data.get("jumpUrl", "").strip()
+    sub_id = data.get("sub_id", "").strip()
+    
+    if not jump_url:
+        return jsonify({"error": "Missing jumpUrl"}), 400
+    if not sub_id:
+        return jsonify({"error": "Missing sub_id"}), 400
+        
+    cookie = clean_cookie(LAZADA_COOKIE)
+    if not cookie:
+        logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
+        return jsonify({"error": "No Lazada cookie configured"}), 500
+
+    # Cấu trúc subIdTemplateKey theo mẫu bạn cung cấp: subId_VN_{ID}_{TIMESTAMP}_83
+    # Lưu ý: Nếu ID tài khoản affiliate của bạn khác, hãy thay số '83' hoặc phần đầu cho phù hợp
+    timestamp_ms = int(time.time() * 1000)
+    sub_id_template = f"subId_VN_{sub_id}_{timestamp_ms}_83"
+
+    payload = {
+        "jumpUrl": jump_url,
+        "subIdTemplateKey": sub_id_template
+    }
+    
+    headers = {
+        "content-type": "application/json",
+        "cookie": cookie,
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    logger.info(f"Calling Lazada fallback API for sub_id={sub_id}")
+    
+    try:
+        r = session.post(
+            "https://adsense.lazada.vn/newOffer/link-convert-v2.json",
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+        res = r.json()
+        
+        if res.get("success") and res.get("resultCode") == 1:
+            short_link = res["data"].get("shortLink")
+            deep_link = res["data"].get("deepLink")
+            
+            if short_link:
+                logger.info(f"✓ Lazada Fallback Convert OK: {short_link}")
+                return jsonify({
+                    "success": True,
+                    "shortLink": short_link,
+                    "deepLink": deep_link,
+                    "is_fallback": True
+                })
+            else:
+                return jsonify({"error": "No shortLink in response", "detail": res}), 500
+        else:
+            logger.error(f"Lazada fallback API failed: {res}")
+            return jsonify({"error": "Lazada API returned error", "detail": res}), 500
+            
+    except Exception as e:
+        logger.error(f"Lazada fallback exception: {e}")
+        return jsonify({"error": "Internal server error", "detail": str(e)}), 500
+        
 # ==================== MAIN ====================
 if __name__ == "__main__":
     logger.info(f"🚀 SaleVN API starting on 0.0.0.0:{PORT}")
     logger.info(f"🔑 Cookie configured: {bool(COOKIE)} (length: {len(COOKIE)})")
-    logger.info(f"🛒 Lazada Cookie configured: {bool(LAZADA_COOKIE)} (length: {len(LAZADA_COOKIE)})")
     app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
