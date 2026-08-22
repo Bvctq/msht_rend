@@ -442,12 +442,14 @@ def api_health():
     return health()
 
 # ==================== API LAZADA CONVERT (FALLBACK) ====================
+# ==================== API LAZADA CONVERT (FALLBACK) ====================
 @app.route("/api/lazada-convert", methods=["POST"])
 @log_request
 def lazada_convert():
     data = request.get_json() or {}
     jump_url = data.get("jumpUrl", "").strip()
     sub_id = data.get("sub_id", "").strip()
+    user_id = data.get("user_id", "").strip() # <-- LẤY USER_ID TỪ PHP
     
     if not jump_url:
         return jsonify({"error": "Missing jumpUrl"}), 400
@@ -459,8 +461,12 @@ def lazada_convert():
         logger.error("LAZADA_COOKIE chưa được cấu hình trong Environment Variables")
         return jsonify({"error": "No Lazada cookie configured"}), 500
 
+    # Ưu tiên dùng user_id (dạng số). Nếu không có, fallback về sub_id (bỏ chữ 'S' ở đầu nếu có)
+    affiliate_id = user_id if user_id else sub_id.lstrip('S')
+    
     timestamp_ms = int(time.time() * 1000)
-    sub_id_template = f"subId_VN_{sub_id}_{timestamp_ms}_83"
+    # Tạo chuỗi khớp với mẫu: subId_VN_212941210_1786990885034_83
+    sub_id_template = f"subId_VN_{affiliate_id}_{timestamp_ms}_83"
 
     payload = {
         "jumpUrl": jump_url,
@@ -473,7 +479,7 @@ def lazada_convert():
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    logger.info(f"Calling Lazada fallback API for sub_id={sub_id}")
+    logger.info(f"Calling Lazada fallback API for user_id={user_id}, sub_id={sub_id}, template={sub_id_template}")
     
     try:
         r = session.post(
