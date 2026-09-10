@@ -27,6 +27,9 @@ COOKIE = os.environ.get("SHOPEE_COOKIE", "")
 LAZADA_COOKIE = os.environ.get("LAZADA_COOKIE", "")
 PORT = int(os.environ.get("PORT", 5000))
 
+# 🔒 BẢO MẬT: Lấy API Key từ Environment Variables (hoặc dùng giá trị mặc định)
+API_KEY = os.environ.get("API_KEY", "salevn_2026_secret_key_v2")
+
 session = requests.Session()
 session.headers.update({
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
@@ -83,8 +86,20 @@ def log_request(f):
             return jsonify({"error": "Internal server error", "detail": str(e)}), 500
     return decorated
 
+# 🔒 BẢO MẬT: Decorator kiểm tra API Key
+def require_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        key = request.headers.get('x-api-key')
+        if key != API_KEY:
+            logger.warning(f"Unauthorized access attempt from {request.remote_addr}")
+            return jsonify({"error": "Unauthorized: Invalid or missing API key"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
 # ==================== API CONVERT ====================
 @app.route("/api/convert", methods=["POST"])
+@require_api_key  # <--- ĐÃ THÊM
 @log_request
 def convert():
     data = request.get_json() or {}
@@ -167,6 +182,7 @@ def convert():
 
 # ==================== API COMMISSION ====================
 @app.route("/api/commission", methods=["GET"])
+@require_api_key  # <--- ĐÃ THÊM
 @log_request
 def commission():
     raw_url = request.args.get("url", "")
@@ -233,6 +249,7 @@ def commission():
 
 # ==================== API ORDERS ====================
 @app.route("/api/orders", methods=["GET"])
+@require_api_key  # <--- ĐÃ THÊM
 @log_request
 def orders():
     sub_id = request.args.get("sub_id")
@@ -442,8 +459,8 @@ def api_health():
     return health()
 
 # ==================== API LAZADA CONVERT (FALLBACK) ====================
-# ==================== API LAZADA CONVERT (FALLBACK) ====================
 @app.route("/api/lazada-convert", methods=["POST"])
+@require_api_key  # <--- ĐÃ THÊM
 @log_request
 def lazada_convert():
     data = request.get_json() or {}
