@@ -30,6 +30,8 @@ PORT = int(os.environ.get("PORT", 5000))
 # 🔒 BẢO MẬT: Lấy API Key từ Environment Variables (hoặc dùng giá trị mặc định)
 API_KEY = os.environ.get("API_KEY", "salevn_2026_secret_key_v2")
 
+ADDLIVETAG_API_KEY = os.environ.get("ADDLIVETAG_API_KEY", "5f61bc8180de619b5cce6839c53e8bc53a1be4c78bc2aedc") 
+
 session = requests.Session()
 session.headers.update({
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
@@ -200,7 +202,10 @@ def commission():
     try:
         r = session.get(
             f"https://data.addlivetag.com/product-data/product-data.php?item_id={item_id}",
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "X-API-Key": ADDLIVETAG_API_KEY  # <--- THÊM DÒNG NÀY
+            },
             timeout=15
         )
         d = r.json()
