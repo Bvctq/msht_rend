@@ -30,7 +30,7 @@ PORT = int(os.environ.get("PORT", 5000))
 # 🔒 BẢO MẬT: Lấy API Key từ Environment Variables (hoặc dùng giá trị mặc định)
 API_KEY = os.environ.get("API_KEY", "salevn_2026_secret_key_v2")
 
-ADDLIVETAG_API_KEY = os.environ.get("ADDLIVETAG_API_KEY", "5f61bc8180de619b5cce6839c53e8bc53a1be4c78bc2aedc") 
+ADDLIVETAG_API_KEY = os.environ.get("ADDLIVETAG_API_KEY", "NHAP_KEY_CUA_BAN_VAO_DAY") 
 
 session = requests.Session()
 session.headers.update({
